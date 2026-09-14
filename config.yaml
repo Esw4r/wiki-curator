@@ -1,0 +1,31 @@
+# =============================================================
+# Wiki Curator — Configuration
+# =============================================================
+
+models:
+  reviewer_1: gemini-2.5-flash
+  reviewer_2: gemini-2.5-flash
+  reviewer_3: gemini-2.5-flash-lite
+  byzantine: gemini-2.5-flash-lite
+
+consensus:
+  method: majority          # "majority" or "weighted"
+  min_confidence: 0.5
+  tie_break: NEEDS_MORE_EVIDENCE
+
+reputation:
+  initial_score: 0.75
+  correct_decision_delta: 2
+  incorrect_decision_delta: -3
+  malicious_detected_delta: -5
+  min_score: 0.0
+  max_score: 1.0
+
+byzantine:
+  enabled: false
+  default_attack_mode: FALSE_CLAIM
+  # Attack intensity: 0.0 (mild) to 1.0 (aggressive)
+  intensity: 0.8
+
+database:
+  path: wiki_curator.db
