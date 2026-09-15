@@ -2,7 +2,7 @@
  * API client — fetch wrapper for the FastAPI backend.
  */
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;

@@ -20,22 +20,18 @@ function App() {
           </div>
 
           <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <span className="nav-link-icon">📊</span>
             Dashboard
           </NavLink>
 
           <NavLink to="/byzantine" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <span className="nav-link-icon">🎭</span>
             Byzantine Agent
           </NavLink>
 
           <NavLink to="/experiments" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <span className="nav-link-icon">🧪</span>
             Experiments
           </NavLink>
 
           <NavLink to="/reputation" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <span className="nav-link-icon">⭐</span>
             Reputation
           </NavLink>
         </aside>
