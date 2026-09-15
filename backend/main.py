@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Wiki Curator — Decision & Adversarial Engine",
     description=(
-        "Person 2 subsystem: Reviewer agents, Byzantine agent, "
+        "Subsystem: Reviewer agents, Byzantine agent, "
         "consensus engine, reputation system, and experiment framework."
     ),
     version="0.1.0",
