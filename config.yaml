@@ -28,7 +28,9 @@ reputation:
 
 byzantine:
   enabled: false
-  default_attack_mode: FALSE_CLAIM
+  # Automatic review-pipeline injection must use a reviewer attack mode.
+  # Proposer attacks remain explicit API actions.
+  default_attack_mode: ALWAYS_ACCEPT
   # Attack intensity: 0.0 (mild) to 1.0 (aggressive)
   intensity: 0.8
 

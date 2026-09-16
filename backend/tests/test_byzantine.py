@@ -93,6 +93,17 @@ class TestAttackModes:
 # ── Fallback Attack ─────────────────────────────────────────────────────
 
 class TestFallbackAttack:
+    @pytest.mark.asyncio
+    async def test_llm_failure_returns_a_fallback_attack(self, agent):
+        """Proposer attacks must degrade gracefully when the LLM is unavailable."""
+        async def fail(**_kwargs):
+            raise RuntimeError("provider unavailable")
+
+        agent._llm.json_completion = fail
+        result = await agent.generate_attack("Earth is round.", AttackType.FALSE_CLAIM)
+        assert result.malicious_claim
+        assert result.source_strategy == "Fallback: LLM unavailable"
+
     def test_fallback_false_claim(self, agent):
         result = agent._fallback_attack("Python was created by Guido.", AttackType.FALSE_CLAIM)
         assert result.attack_type == AttackType.FALSE_CLAIM

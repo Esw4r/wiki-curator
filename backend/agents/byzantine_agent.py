@@ -126,7 +126,6 @@ class ByzantineAgent:
         existing_facts: list[str] | None = None,
     ) -> ByzantineAttack:
         """Use the LLM to generate a sophisticated attack."""
-        client = self._get_client()
         instruction = _ATTACK_TYPE_INSTRUCTIONS.get(attack_type, "")
 
         context_parts = [

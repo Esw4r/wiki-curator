@@ -17,6 +17,7 @@ from backend.agents.evidence_reviewer import EvidenceReviewer
 from backend.agents.consistency_reviewer import ConsistencyReviewer
 from backend.agents.conservative_reviewer import ConservativeReviewer
 from backend.agents.byzantine_agent import ByzantineAgent
+from backend.api.byzantine_routes import get_runtime_config
 from backend.config import settings
 from backend.consensus.engine import ConsensusEngine
 from backend.consensus.reputation import ReputationManager
@@ -85,12 +86,13 @@ async def submit_for_review(editor_verdict: EditorVerdict):
     votes: list[ReviewVote] = await asyncio.gather(*review_tasks)
 
     # 3. Optional byzantine reviewer
-    byzantine_active = settings.byzantine.enabled
+    byzantine_config = get_runtime_config()
+    byzantine_active = bool(byzantine_config["enabled"])
     if byzantine_active:
         byz_vote = await _byzantine_agent.cast_vote(
             proposal_id=proposal_id,
             claim=claim,
-            attack_mode=AttackType(settings.byzantine.default_attack_mode),
+            attack_mode=AttackType(str(byzantine_config["default_attack_mode"])),
             editor_verdict=editor_verdict,
         )
         votes.append(byz_vote)
