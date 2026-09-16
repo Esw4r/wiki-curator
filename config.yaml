@@ -3,10 +3,15 @@
 # =============================================================
 
 models:
-  reviewer_1: gemini-2.5-flash
-  reviewer_2: gemini-2.5-flash
-  reviewer_3: gemini-2.5-flash-lite
-  byzantine: gemini-2.5-flash-lite
+  reviewer_1: openai/gpt-oss-20b
+  reviewer_2: openai/gpt-oss-20b
+  reviewer_3: openai/gpt-oss-20b
+  byzantine: openai/gpt-oss-20b
+  editor: openai/gpt-oss-20b
+
+search:
+  max_results: 5
+  timeout_seconds: 10
 
 consensus:
   method: majority          # "majority" or "weighted"

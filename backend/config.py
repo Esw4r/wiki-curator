@@ -36,19 +36,23 @@ class _ModelsConfig:
 
     @property
     def reviewer_1(self) -> str:
-        return _YAML.get("models", {}).get("reviewer_1", "gemini-2.5-flash")
+        return _YAML.get("models", {}).get("reviewer_1", "openai/gpt-oss-20b")
 
     @property
     def reviewer_2(self) -> str:
-        return _YAML.get("models", {}).get("reviewer_2", "gemini-2.5-flash")
+        return _YAML.get("models", {}).get("reviewer_2", "openai/gpt-oss-20b")
 
     @property
     def reviewer_3(self) -> str:
-        return _YAML.get("models", {}).get("reviewer_3", "gemini-2.5-flash-lite")
+        return _YAML.get("models", {}).get("reviewer_3", "openai/gpt-oss-20b")
 
     @property
     def byzantine(self) -> str:
-        return _YAML.get("models", {}).get("byzantine", "gemini-2.5-flash-lite")
+        return _YAML.get("models", {}).get("byzantine", "openai/gpt-oss-20b")
+
+    @property
+    def editor(self) -> str:
+        return _YAML.get("models", {}).get("editor", "openai/gpt-oss-20b")
 
 
 class _ConsensusConfig:
@@ -120,6 +124,16 @@ class _DatabaseConfig:
         return str(_PROJECT_ROOT / relative)
 
 
+class _SearchConfig:
+    @property
+    def max_results(self) -> int:
+        return int(_YAML.get("search", {}).get("max_results", 5))
+
+    @property
+    def timeout_seconds(self) -> float:
+        return float(_YAML.get("search", {}).get("timeout_seconds", 10))
+
+
 # ── Public config object ─────────────────────────────────────────────────
 
 class Settings:
@@ -131,14 +145,14 @@ class Settings:
         self.reputation = _ReputationConfig()
         self.byzantine = _ByzantineConfig()
         self.database = _DatabaseConfig()
+        self.search = _SearchConfig()
 
     @property
-    def gemini_api_key(self) -> str:
-        key = os.getenv("GEMINI_API_KEY", "")
+    def groq_api_key(self) -> str:
+        key = os.getenv("GROQ_API_KEY", "")
         if not key:
             raise ValueError(
-                "GEMINI_API_KEY is not set. "
-                "Copy .env.example to .env and set your key."
+                "GROQ_API_KEY is not set. Copy .env.example to .env and set your key."
             )
         return key
 

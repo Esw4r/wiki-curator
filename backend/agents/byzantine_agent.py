@@ -10,13 +10,9 @@ All attacks are configurable, reproducible, and measurable.
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 from typing import Optional
-
-from google import genai
-from google.genai import types
 
 from backend.config import settings
 from backend.schemas.messages import (
@@ -27,6 +23,7 @@ from backend.schemas.messages import (
     Source,
     VoteChoice,
 )
+from backend.services.llm import GroqClient
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +75,7 @@ class ByzantineAgent:
     def __init__(self, seed: int | None = None) -> None:
         self._model = settings.models.byzantine
         self._rng = random.Random(seed)
-        self._client: genai.Client | None = None
-
-    def _get_client(self) -> genai.Client:
-        """Lazy-initialize the GenAI client."""
-        if self._client is None:
-            self._client = genai.Client(api_key=settings.gemini_api_key)
-        return self._client
+        self._llm = GroqClient()
 
     # ── Mode 1: Malicious Proposer ───────────────────────────────────────
 
@@ -180,18 +171,11 @@ class ByzantineAgent:
         }
 
         try:
-            response = client.models.generate_content(
+            data = await self._llm.json_completion(
                 model=self._model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=_ATTACK_SYSTEM_PROMPT,
-                    temperature=0.9,
-                    response_mime_type="application/json",
-                    response_schema=response_schema,
-                ),
+                system_prompt=_ATTACK_SYSTEM_PROMPT,
+                prompt=prompt + "\n\nReturn JSON matching: " + str(response_schema),
             )
-
-            data = json.loads(response.text)
 
             fake_sources = [
                 Source(

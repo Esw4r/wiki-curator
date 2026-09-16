@@ -24,7 +24,7 @@ async def create_proposal(
     db = await get_db()
     try:
         await db.execute(
-            "INSERT INTO proposals (id, claim, proposer_agent) VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO proposals (id, claim, proposer_agent) VALUES (?, ?, ?)",
             (proposal_id, claim, proposer_agent),
         )
         await db.commit()

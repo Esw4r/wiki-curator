@@ -1,0 +1,656 @@
+Wiki Curator - Person 1 Integration Review
+==========================================
+
+Scope and method
+----------------
+This is a read-only review of the repository as found. No existing source,
+database schema, configuration, or frontend file was changed. The only output
+created for this request is this report.
+
+The actual Git project root is wiki-curator/ beneath the supplied workspace,
+not the workspace directory itself. The repository broadly matches the README,
+but the README is not fully accurate (notably its .env.example assertion and
+some Byzantine endpoint/configuration details).
+
+
+Current Repository Structure
+============================
+
+Repository root (wiki-curator/)
+--------------------------------
+* README.md and requirements.txt
+* config.yaml
+* wiki_curator.db (SQLite database; currently initialized)
+* backend/
+  * main.py - FastAPI app, CORS setup, router mounting, DB lifespan startup
+  * config.py - .env/config.yaml loader and Settings singleton
+  * agents/ - base_reviewer.py, the three reviewers, byzantine_agent.py
+  * api/ - review_routes.py, byzantine_routes.py, experiment_routes.py
+  * consensus/ - engine.py and reputation.py
+  * database/ - db.py (DDL/connection), models.py (CRUD helpers)
+  * experiments/ - runner.py and test_claims.py
+  * schemas/ - messages.py
+  * tests/ - test_consensus.py and test_byzantine.py
+* frontend/ - Vite/React client
+  * src/App.jsx, main.jsx, index.css
+  * src/api/client.js
+  * src/pages/Dashboard.jsx, ProposalDetail.jsx, Byzantine.jsx,
+    Experiments.jsx, Reputation.jsx
+  * package.json, Vite files, public/ and assets/
+* venv/ and __pycache__/ are present locally and should not be treated as
+  project source.
+
+Differences from the README:
+* .env.example does not exist (nor does .env). README/config.py refer to it.
+* The database has no knowledge-base facts or sources table, despite the
+  intended pipeline describing a KB.
+* README lists a Byzantine vote endpoint as /api/byzantine/attack/vote; the
+  actual endpoint is POST /api/byzantine/vote.
+* README shows a different, older-looking config example: the actual YAML
+  uses reviewer_1/reviewer_2/reviewer_3 rather than reviewer_primary/lite,
+  and uses min_confidence/tie_break rather than min_votes_required/
+  approval_threshold/use_reputation_weighting.
+
+
+Person 2 Components Already Implemented
+=======================================
+
+The working Person 2 subsystem consists of:
+
+* Reviewer foundation: agents/base_reviewer.py defines BaseReviewer. It builds
+  a context prompt, calls Gemini with JSON structured output, validates into a
+  ReviewVote, and returns a conservative NEEDS_MORE_EVIDENCE fallback if an
+  LLM/API/parse operation fails.
+* Three Gemini reviewers:
+  * EvidenceReviewer (reviewer_1) evaluates credibility, direct evidence,
+    independence and completeness.
+  * ConsistencyReviewer (reviewer_2) evaluates KB conflicts, duplicates and
+    logical/temporal consistency.
+  * ConservativeReviewer (reviewer_3) applies a high evidence threshold and
+    treats EditorVerdict.CONTRADICTED and INSUFFICIENT_EVIDENCE specially.
+* ByzantineAgent: malicious claim/source generation and malicious votes across
+  the AttackType values. It is surfaced by backend/api/byzantine_routes.py.
+* ConsensusEngine: deterministic majority or reputation-weighted aggregation
+  in backend/consensus/engine.py.
+* ReputationManager: reads, clamps, writes, resets and records agent scores in
+  backend/consensus/reputation.py. Routine POST /api/review does not update
+  reputation; ExperimentRunner updates it only when experiment ground truth
+  exists.
+* ExperimentRunner and curated true/false test data. Critically,
+  ExperimentRunner._simulate_editor_verdict() is an explicit temporary Person
+  1 stand-in; it creates fabricated Source values and ground-truth-derived
+  EditorVerdicts for experiments.
+* SQLite persistence, FastAPI lifecycle initialization, query endpoints, and
+  an existing dashboard/Byzantine/experiment/reputation frontend.
+
+
+Shared Interfaces and Schemas
+=============================
+
+All shared contracts are in backend/schemas/messages.py, use Pydantic v2, and
+are the correct integration source of truth.
+
+Enums
+-----
+* VoteChoice: ACCEPT, REJECT, NEEDS_MORE_EVIDENCE.
+* EditorVerdictType: VALID, CONTRADICTED, INSUFFICIENT_EVIDENCE. In particular,
+  INVALID is not an allowed actual value; the compatible replacement for an
+  unsupported claim is CONTRADICTED.
+* ConsensusMethod: majority or weighted.
+* AttackType: FALSE_CLAIM, CONTRADICT_EXISTING_FACT, FAKE_SOURCE,
+  IRRELEVANT_SOURCE, ALWAYS_ACCEPT, ALWAYS_REJECT, RANDOM_VOTE, and
+  CONFIDENCE_MANIPULATION.
+* ProposalStatusType: PENDING, UNDER_REVIEW, ACCEPTED, REJECTED, and
+  NEEDS_MORE_EVIDENCE.
+* AgentRole: REVIEWER, BYZANTINE, RESEARCH, EDITOR.
+
+Source and research models
+--------------------------
+Source has required string fields title, url, and snippet, plus optional
+domain: str defaulting to "". There is no URL/domain validation beyond normal
+Pydantic string coercion/validation.
+
+ResearchOutput contains proposal_id: str (default P- plus 8 UUID hex chars),
+claim: str (required), sources: list[Source] default [], and timestamp:
+datetime default datetime.utcnow(). It exists as the intended Research ->
+Editor contract, but no present route or agent produces it.
+
+Exact EditorVerdict contract - the Person 1 -> Person 2 boundary
+-----------------------------------------------------------------
+All three first fields are required because they have no defaults:
+
+* proposal_id: str - must identify the proposal throughout the pipeline.
+* claim: str - the submitted factual claim.
+* verdict: EditorVerdictType - exactly VALID, CONTRADICTED, or
+  INSUFFICIENT_EVIDENCE.
+* confidence: float - required; Field(ge=0.0, le=1.0), so 0 and 1 are valid
+  and values outside that range return Pydantic/FastAPI validation errors.
+* supporting_sources: list[Source] - optional, default empty list.
+* conflicts: list[str] - optional, default empty list.
+* reason: str - optional, default empty string.
+* existing_kb_facts: list[str] - optional, default empty list; intended to
+  contain previously accepted relevant facts.
+
+There are no minimum length, non-empty, source-count, duplicate-ID, or
+semantic cross-field validators. Person 2 expects actual Source objects in
+supporting_sources and a text list for existing_kb_facts. It uses verdict,
+confidence, sources, conflicts, reason, and KB facts in reviewer prompts;
+only verdict/confidence are persisted in the existing proposals row.
+
+Other material contracts:
+* ReviewVote: required proposal_id, reviewer_id, VoteChoice vote, and bounded
+  confidence; optional reason="", is_byzantine=False and utc timestamp.
+* ConsensusDecision: required proposal_id and VoteChoice decision; all counts
+  default 0, consensus_method defaults majority, reason/vote_details/timestamp
+  have defaults.
+* ProposalDetail is the POST /review response model: proposal_id and claim are
+  required; status defaults PENDING; editor_verdict and consensus are optional;
+  votes defaults []; byzantine_active defaults false; created_at is generated.
+* ByzantineVoteRequest includes required proposal_id/claim, optional
+  editor_verdict, and attack_mode default ALWAYS_ACCEPT.
+
+
+Current /api/review Flow
+========================
+
+Route: backend/api/review_routes.py -> submit_for_review(), mounted by
+backend/main.py as POST /api/review. Request body is exactly an EditorVerdict;
+FastAPI validates it before the route executes.
+
+Actual processing order:
+1. It takes proposal_id and claim from the submitted verdict.
+2. db.create_proposal(proposal_id, claim) inserts a PENDING proposals record.
+   update_proposal_status(..., UNDER_REVIEW) and update_proposal_editor(...)
+   then store the editor enum string and confidence.
+3. It derives sources from editor_verdict.supporting_sources and KB facts from
+   editor_verdict.existing_kb_facts.
+4. It starts EvidenceReviewer.review(), ConsistencyReviewer.review(), and
+   ConservativeReviewer.review() in one asyncio.gather call. They run
+   concurrently at the coroutine level. Each uses the synchronous
+   google-genai generate_content call inside its async method, so network/model
+   calls can nevertheless block the event loop in practice.
+5. If settings.byzantine.enabled (the YAML-backed Settings value) is true, the
+   route awaits one ByzantineAgent.cast_vote() after the honest reviewers, then
+   appends it. This step is sequential after the parallel honest reviews.
+6. Every vote is inserted through db.insert_vote().
+7. Consensus method comes from settings.consensus.method. For weighted mode,
+   ReputationManager.get_all_reputations() builds the weight map; then
+   ConsensusEngine.decide() computes the decision. Majority compares raw
+   counts; weighted sums reputation * vote confidence. A configured tie break
+   applies in relevant ties.
+8. db.insert_decision() persists result totals/method/reason. Proposal status
+   becomes ACCEPTED, REJECTED, or NEEDS_MORE_EVIDENCE based on consensus.
+9. The route returns a ProposalDetail containing the submitted full verdict,
+   in-memory ReviewVote objects, consensus, status and byzantine_active.
+
+The route does not persist research evidence, editor reason/conflicts, full
+KB context, full editor verdict JSON, or the returned ProposalDetail. It also
+does not update reputation after a normal production decision because it has
+no ground truth.
+
+Integration boundary, exactly:
+
+Person 1 output
+  EditorVerdict(proposal_id, claim, verdict, confidence, supporting_sources,
+                conflicts, reason, existing_kb_facts)
+        -> HTTP JSON POST /api/review
+Person 2 input
+  FastAPI EditorVerdict parameter in submit_for_review()
+        -> parallel EvidenceReviewer/ConsistencyReviewer/ConservativeReviewer
+        -> optional YAML-controlled Byzantine vote
+        -> ConsensusEngine and SQLite persistence
+Final response
+  ProposalDetail {proposal_id, claim, final status, original editor_verdict,
+                  votes, consensus, byzantine_active, created_at}
+
+The direct in-process alternative would be calling submit_for_review() or
+reusing reviewers/ConsensusEngine, but POST /api/review is the deliberate
+public boundary and avoids duplicating Person 2 logic.
+
+
+Current Database Architecture
+=============================
+
+Connection behavior
+-------------------
+database/db.py provides get_db(), which opens a fresh aiosqlite connection per
+CRUD operation, enables WAL and foreign_keys for that connection, and uses the
+absolute path derived from settings.database.path. init_db() executes DDL and
+seeds the four Person 2 agents at app startup. close_db() only closes a passed
+connection and is otherwise unused by the helpers.
+
+Tables
+------
+agents
+* id TEXT primary key
+* name TEXT NOT NULL
+* role TEXT NOT NULL
+* model TEXT default ''
+* reputation REAL default 0.75
+* status TEXT default 'active'
+* created_at TEXT default datetime('now')
+No foreign keys outward. Seeded rows: reviewer_1, reviewer_2, reviewer_3 and
+byzantine.
+
+proposals
+* id TEXT primary key
+* claim TEXT NOT NULL
+* proposer_agent TEXT default 'user'
+* status TEXT default 'PENDING'
+* editor_verdict TEXT nullable/default NULL
+* editor_confidence REAL nullable/default NULL
+* created_at TEXT default datetime('now')
+Referenced by votes and decisions. No source/evidence/KB foreign key.
+
+votes
+* id INTEGER primary key autoincrement
+* proposal_id TEXT NOT NULL, FK -> proposals.id
+* agent_id TEXT NOT NULL, FK -> agents.id
+* vote TEXT NOT NULL
+* confidence REAL default 0.5
+* reason TEXT default ''
+* is_byzantine INTEGER default 0
+* created_at TEXT default datetime('now')
+
+decisions
+* id INTEGER primary key autoincrement
+* proposal_id TEXT UNIQUE NOT NULL, FK -> proposals.id
+* decision TEXT NOT NULL
+* consensus_method TEXT default 'majority'
+* accept_votes/reject_votes/needs_more_evidence_votes INTEGER default 0
+* reason TEXT default ''
+* created_at TEXT default datetime('now')
+The UNIQUE proposal_id permits only one current decision per proposal.
+
+reputation_history
+* id INTEGER primary key autoincrement
+* agent_id TEXT NOT NULL, FK -> agents.id
+* old_score REAL NOT NULL
+* new_score REAL NOT NULL
+* reason TEXT default ''
+* created_at TEXT default datetime('now')
+
+experiment_runs
+* id TEXT primary key
+* name TEXT default ''
+* config_json TEXT default '{}'
+* results_json TEXT default '{}'
+* created_at TEXT default datetime('now')
+
+CRUD functions in database/models.py
+------------------------------------
+* Proposals: create_proposal, update_proposal_status, update_proposal_editor,
+  get_proposal, list_proposals.
+* Votes: insert_vote, get_votes_for_proposal.
+* Decisions: insert_decision (INSERT OR REPLACE), get_decision, list_decisions.
+* Agents: get_agent, list_agents, update_agent_reputation.
+* Reputation: insert_reputation_history, get_reputation_history.
+* Experiments: insert_experiment, get_experiment, list_experiments.
+* Aggregates: get_dashboard_stats.
+There are no delete functions despite the requested CRUD phrasing, and no
+source/fact/research/KB CRUD functions.
+
+Current stored data
+-------------------
+The checked SQLite file contains tables agents, proposals, votes, decisions,
+reputation_history, experiment_runs and SQLite's sequence table. It has four
+seeded agents and zero proposals, votes, decisions, reputation-history rows,
+or experiment runs.
+
+KB fitness
+----------
+Existing proposals, votes, decisions and agents should remain the authoritative
+review/consensus history. The schema cannot meet Person 1 requirements alone:
+it cannot normalize sources, retain evidence per proposal, store accepted facts
+or articles, associate facts/sources/proposals, track a fact's current
+validity/version, or efficiently find duplicates/conflicts. Additional tables
+and migrations will be necessary; they should be added to the same SQLite file
+and initialized idempotently rather than creating a second competing database.
+
+
+Current Frontend Architecture
+=============================
+
+Routing and presentation
+------------------------
+frontend/src/App.jsx uses BrowserRouter with:
+* / -> Dashboard
+* /proposals/:id -> ProposalDetail
+* /byzantine -> Byzantine
+* /experiments -> Experiments
+* /reputation -> Reputation
+There is a persistent sidebar. main.jsx mounts App under React StrictMode.
+index.css supplies the shared dark/glass visual system, forms, cards, tables,
+status badges, charts and responsive layout.
+
+API communication
+-----------------
+src/api/client.js has a fetch wrapper rooted at relative /api. It sends JSON,
+throws with response text for non-OK results, and has wrappers for every
+existing review, query, Byzantine, experiment, and health endpoint. Vite's
+config should be checked when running locally to ensure its proxy/base target
+matches FastAPI; client.js itself contains no configurable backend base URL.
+
+Existing dashboard flow
+-----------------------
+Dashboard.jsx loads getDashboard() and listProposals(20) in parallel and
+displays stats, charts, and proposal links. Its Quick Submit is explicitly a
+test path: handleQuickSubmit() creates an ID and a hard-coded VALID
+EditorVerdict with a Mock Source, then calls api.submitForReview(). It does
+not research, query the KB, show evidence, or invoke an editor.
+
+ProposalDetail.jsx loads getProposal(id) and shows the stored proposal
+columns, votes and consensus. Because GET /proposals/{id} reads only the
+existing normalized tables, it cannot currently show original source snippets,
+editor reason/conflicts, or KB context. Byzantine.jsx controls/generates
+attacks; Experiments.jsx runs/list experiments; Reputation.jsx charts current
+agent scores/history.
+
+Reusable Person 1 UI pieces: dashboard submission layout/form styles,
+proposal list and deep-link, ProposalDetail's outcome/vote cards, api client,
+shared card/table/badge CSS, and App's sidebar/router. Missing: a real claim
+submission/research page or staged panel, evidence source display, editor
+assessment display, existing-fact/duplicate/conflict display, and a history
+view that can retrieve those fields after reload.
+
+
+Missing Person 1 Components
+===========================
+
+Everything below is a proposed addition, not something already present.
+
+Research Agent
+--------------
+Recommended location: backend/agents/research_agent.py. Define a
+ResearchAgent with an async research(claim: str, proposal_id: str | None) ->
+ResearchOutput method. It should generate several focused queries, call one
+chosen search provider through an isolated adapter (for example
+backend/services/search.py), deduplicate canonical URLs/domains, retrieve only
+permitted page content, and produce validated Source(title, url, snippet,
+domain) objects. Preserve query/provider/fetch timestamp/HTTP status and any
+credibility signals in a proposed richer persistence model; Source itself has
+no metadata field.
+
+The existing ResearchOutput and Source models are enough for the immediate
+Research -> Editor and reviewer handoff. Do not change the shape of Source
+without coordinating Person 2, since BaseReviewer._build_prompt() accesses
+title/url/domain/snippet directly.
+
+Editor Agent
+------------
+Recommended location: backend/agents/editor_agent.py. Define EditorAgent with
+an async evaluate(research: ResearchOutput, kb_context: list[str], ...) ->
+EditorVerdict method. Use the existing google-genai dependency and Settings
+API-key loader rather than a second Gemini configuration/client style. Give
+Gemini a strict JSON response schema aligned with EditorVerdictType, then
+construct/validate EditorVerdict locally; enforce the returned proposal_id and
+claim match the input instead of trusting generated identifiers.
+
+Its inputs must include the claim, the actual research sources, normalized KB
+context and detected duplicate/conflict candidates. Its result must map
+"unsupported/false" to CONTRADICTED (not INVALID) and weak/ambiguous evidence
+to INSUFFICIENT_EVIDENCE. It should place selected direct sources in
+supporting_sources, text explanations in conflicts/reason, and accepted fact
+texts in existing_kb_facts.
+
+Orchestrator
+------------
+Recommended location: backend/services/curation_orchestrator.py (or a
+similarly clearly named backend/orchestration/ module). Define one async
+submit_claim(claim: str, proposer_agent: str = "user") method:
+1. allocate one proposal ID,
+2. query KB candidates,
+3. run ResearchAgent,
+4. run EditorAgent,
+5. persist Person 1 evidence/editor context,
+6. call the existing submit_for_review boundary through a service-level
+   adapter or HTTP POST /api/review,
+7. process the returned consensus and update KB only on ACCEPT.
+
+For a monolith, an in-process adapter calling Person 2's well-defined service
+is lower latency, but the public contract must remain the exact EditorVerdict
+JSON accepted by POST /api/review. Do not make frontend submit an editor
+verdict directly after the real orchestrator exists.
+
+Knowledge Base
+--------------
+Reuse Person 2's proposals/votes/decisions/agents/reputation tables. Proposed
+tables, all in wiki_curator.db:
+* facts: stable ID, canonical fact text, normalized/hash text, status/current
+  version, accepted proposal_id FK, created/updated timestamps.
+* sources: stable ID, canonical URL UNIQUE, title, domain, retrieved metadata
+  and timestamps (with optional content digest).
+* proposal_evidence: proposal_id FK, source_id FK, snippet, query/rank,
+  support/credibility fields; unique proposal/source relation.
+* fact_sources: fact_id FK, source_id FK and relationship/provenance fields.
+* optionally fact_revisions or fact_history: fact_id, proposal_id, action
+  (accepted/rejected/superseded/duplicate), reason, timestamps.
+Use a small repository module such as backend/database/kb_models.py rather
+than overloading Person 2's models.py with unrelated APIs. Add indexes for
+normalized fact text, status, proposal_evidence.proposal_id and source URL.
+
+Person 1 UI
+-----------
+Recommended route/page: frontend/src/pages/SubmitClaim.jsx (or convert the
+Dashboard quick-submit card into a real reusable ClaimSubmission component).
+It should submit only {claim} to a new Person 1 orchestration endpoint, show
+staged state (KB match -> search evidence -> editor verdict -> reviewers ->
+consensus), and then link to ProposalDetail. Add evidence/editor/KB sections
+to ProposalDetail once the API returns persisted fields. Extend client.js with
+the orchestration submit and evidence/context retrieval methods. Preserve the
+existing P2 pages/routes rather than replacing them.
+
+
+Potential Conflicts/Risks
+=========================
+
+1. Verdict mismatch: the request wording says INVALID; actual
+   EditorVerdictType uses CONTRADICTED. Sending INVALID produces a 422 error.
+2. Mock handoff: Dashboard.jsx currently submits fabricated VALID verdicts,
+   and ExperimentRunner._simulate_editor_verdict() deliberately mocks Person
+   1. Replace only the dashboard production path when implementing, not the
+   experiment simulator unless the experiment contract is explicitly expanded.
+3. Duplicate proposal ID: create_proposal is plain INSERT and /review has no
+   duplicate handling/idempotency; an existing ID causes an unhandled DB
+   integrity failure. The orchestrator should create an ID once and retries
+   need an idempotency decision.
+4. Database foreign keys: enabling PRAGMA foreign_keys makes a proposal insert
+   order important. Votes need agents already seeded and a proposal present.
+5. No atomic review transaction: each existing helper opens/commits a distinct
+   connection. A mid-pipeline failure can leave UNDER_REVIEW proposals and
+   partial data. KB finalization should be a deliberate, separately
+   transactional post-consensus step.
+6. SQLite concurrency: WAL helps read/write concurrency but only one writer is
+   practical. Multiple async requests and per-row vote commits can encounter
+   locking; use short write transactions/retry policy and avoid a new database.
+7. Evidence loss: only editor enum/confidence persist. Without Person 1
+   evidence tables, GET detail after a restart cannot reproduce reviewer input
+   or explain final acceptance.
+8. Duplicate/conflict semantics: ConsistencyReviewer sees only
+   existing_kb_facts: list[str]; it does not query the DB. Person 1 must supply
+   a relevant, bounded, deterministic context list, not every fact.
+9. Configuration split: PUT /api/byzantine/config changes _runtime_config,
+   but submit_for_review uses settings.byzantine (YAML loaded at import). The
+   UI's toggle does not affect the review pipeline. This is a demonstrated P2
+   integration issue to resolve jointly before claiming the UI controls review.
+10. Static configuration: config.py loads YAML once; route runtime settings
+    are separate and not persistent. Gemini research/editor model settings do
+    not yet exist. Add settings without silently changing P2 reviewer names.
+11. Config values not all enforced: consensus.min_confidence is defined but
+    ConsensusEngine does not use it; the configured tie_break must be a valid
+    VoteChoice string or consensus can fail. Reputation deltas of +2/-3 clamp
+    scores to 0..1 immediately, which is unusual but current behavior.
+12. Async illusion: reviewer methods are async but invoke synchronous Gemini
+    generation. Research/search implementation should use async clients or
+    thread off blocking SDK calls; otherwise parallel gather may serialize/block.
+13. Normal reviews do not change reputation, correctly avoiding an assumed
+    ground truth. Do not update reputation merely based on consensus unless the
+    team defines that as policy.
+14. Frontend status styling maps only ACCEPT/REJECT specially; VALID,
+    CONTRADICTED and INSUFFICIENT_EVIDENCE will render with the generic NME
+    styling in current VoteBadge logic. A Person 1 UI needs its own verdict
+    badge mapping.
+15. API detail contract mismatch: POST /review returns full in-memory
+    EditorVerdict; GET /proposals/{id} returns only stored proposal/votes/
+    decision. UI expectations must distinguish immediate vs historical views.
+16. README endpoint/config documentation has drift; implement against actual
+    code and update documentation only as a separate coordinated change.
+
+
+Recommended Implementation Plan
+===============================
+
+Phase 1 - Existing infrastructure to reuse
+* Reuse messages.py (Source, ResearchOutput, EditorVerdict), config.settings,
+  db.get_db/init_db, P2 POST /api/review, and frontend client/router/CSS.
+* Modify no P2 behavior initially. Confirm the actual Pydantic API contract
+  with a request-validation test.
+* Test: smoke test DB initialization and a schema serialization/validation test.
+
+Phase 2 - Schemas/interfaces to create
+* Create proposed Person 1 request/response schemas in
+  backend/schemas/curation.py: ClaimSubmission, CurationProgress/Result, and
+  persisted evidence/fact response models. Keep EditorVerdict itself in
+  messages.py unchanged.
+* Modify backend/schemas/__init__.py only if exports are conventionally used.
+* Dependency: Pydantic is already installed.
+* Tests: enum mapping, bounded confidence, source conversion, no changed P2
+  EditorVerdict JSON contract.
+
+Phase 3 - Research Agent
+* Create backend/agents/research_agent.py and backend/services/search.py (or a
+  provider-specific adapter selected by the team).
+* Add only required provider dependency/config after choosing a lawful search
+  API; do not scrape Google directly without an approved service/terms plan.
+* Reuse Source/ResearchOutput; output must be deterministic in shape even when
+  no sources are returned.
+* Tests: query generation, provider mocked responses, URL/domain
+  normalization/deduplication, empty/provider-error behavior.
+
+Phase 4 - Knowledge Base
+* Modify backend/database/db.py with idempotent DDL/migration logic for the
+  proposed facts, sources, proposal_evidence, fact_sources and history tables.
+* Create backend/database/kb_models.py for KB CRUD/search/duplicate functions.
+* Reuse the existing database path, proposal ID and P2 proposal/decision rows.
+* Tests: migrations on empty/existing DB, FK integrity, source dedupe, exact
+  and normalized duplicate search, accept/reject history behavior.
+
+Phase 5 - Editor Agent
+* Create backend/agents/editor_agent.py.
+* Optionally add research_editor model settings to config.yaml and matching
+  config.py accessors; retain current reviewer settings exactly.
+* Reuse google-genai and settings.gemini_api_key. Generate a Pydantic-valid
+  EditorVerdict, preserving the orchestrator's proposal ID and claim.
+* Tests: mocked Gemini JSON valid/invalid, VALID/CONTRADICTED/INSUFFICIENT
+  mapping, KB conflict/duplicate context forwarding, bounded confidence.
+
+Phase 6 - Orchestrator
+* Create backend/services/curation_orchestrator.py and backend/api/curation_routes.py.
+* Modify backend/main.py to mount the new router under /api; do not change P2
+  review router's path.
+* Use Research -> KB lookup -> Editor -> exact EditorVerdict -> /api/review;
+  finalize fact/source relationships only after consensus ACCEPT. Agree first
+  whether the adapter is internal call or localhost HTTP; test both interfaces
+  against the same EditorVerdict fixture.
+* Tests: orchestration with fakes, failure stages, no KB update on REJECT/NME,
+  accepted fact provenance and duplicate behavior.
+
+Phase 7 - API integration with Person 2
+* Modify only the new curation routes/service and, if genuinely required,
+  review_routes.py to expose persisted full context through GET detail. Do not
+  replace submit_for_review().
+* Resolve the demonstrated Byzantine runtime-config versus settings split with
+  Person 2 ownership before wiring the production UI control.
+* Tests: contract test that the orchestrator payload is accepted by POST
+  /api/review; test all three EditorVerdictType values; test disabled/enabled
+  Byzantine behavior after the configuration decision.
+
+Phase 8 - Person 1 frontend
+* Create frontend/src/pages/SubmitClaim.jsx and optionally
+  frontend/src/components/ClaimPipeline.jsx, EvidenceList.jsx,
+  EditorVerdictCard.jsx, and KnowledgeContext.jsx.
+* Modify App.jsx (new route/navigation), api/client.js (new curation calls),
+  Dashboard.jsx (replace mock quick-submit with a link/component),
+  ProposalDetail.jsx (render persisted evidence/editor/KB data), and index.css
+  only for new reusable classes.
+* Reuse existing Cards, form controls, proposal links and decision visuals.
+* Tests: component tests if a test runner is added; at minimum build/lint and
+  manual flow/error/no-evidence state checks.
+
+Phase 9 - End-to-end testing
+* Add backend/tests/test_curation_pipeline.py plus provider/Gemini fakes;
+  extend a test database fixture rather than using wiki_curator.db.
+* Verify: claim -> research sources -> KB candidates -> editor verdict ->
+  POST /api/review -> three votes -> consensus -> persisted history -> accepted
+  fact, and separately REJECT/NME paths with no KB acceptance.
+* Run existing test_consensus.py and test_byzantine.py unchanged, then FastAPI
+  API tests and the frontend production build.
+
+
+Files to Create
+===============
+
+Proposed backend files:
+* backend/schemas/curation.py
+* backend/agents/research_agent.py
+* backend/agents/editor_agent.py
+* backend/services/search.py
+* backend/services/curation_orchestrator.py
+* backend/api/curation_routes.py
+* backend/database/kb_models.py
+* backend/tests/test_curation_pipeline.py
+* backend/tests/test_kb_models.py
+
+Proposed frontend files:
+* frontend/src/pages/SubmitClaim.jsx
+* frontend/src/components/ClaimPipeline.jsx
+* frontend/src/components/EvidenceList.jsx
+* frontend/src/components/EditorVerdictCard.jsx
+* frontend/src/components/KnowledgeContext.jsx
+
+Exact names above are recommendations, not existing files or agreed API names.
+
+
+Files to Modify
+===============
+
+Proposed, scoped modifications:
+* backend/database/db.py - idempotent KB DDL/indexes/migration initialization.
+* backend/main.py - mount the new Person 1 router.
+* backend/config.py and config.yaml - only add clearly namespaced research/
+  editor/search settings after provider/model decisions.
+* backend/schemas/__init__.py and backend/agents/__init__.py - exports only if
+  the project adopts them.
+* backend/api/review_routes.py - only if a demonstrated need exists to return
+  persisted Person 1 detail or share an adapter; keep POST contract intact.
+* frontend/src/App.jsx, api/client.js, pages/Dashboard.jsx,
+  pages/ProposalDetail.jsx, index.css - add the Person 1 flow/display without
+  removing Person 2 pages.
+* requirements.txt/package.json - only if the selected search provider or test
+  approach requires a new dependency.
+
+Do not modify base_reviewer.py, the three reviewer implementations,
+consensus/engine.py, reputation.py, experiments/runner.py, P2 tests, or
+Byzantine functionality except through a jointly agreed resolution of a real
+integration issue.
+
+
+End-to-End Target Architecture
+==============================
+
+User claim (SubmitClaim UI)
+  -> POST /api/curation/submit [proposed]
+  -> CurationOrchestrator allocates proposal ID and retrieves KB candidates
+  -> ResearchAgent/SearchAdapter returns ResearchOutput and Source evidence
+  -> EditorAgent produces validated existing EditorVerdict
+  -> POST /api/review (existing Person 2 contract)
+  -> three concurrent reviewers, optional Byzantine reviewer, consensus
+  -> existing proposals/votes/decisions persistence
+  -> orchestrator applies ACCEPT-only KB fact/source/history transaction
+  -> curation response and ProposalDetail display evidence, editor reasoning,
+     existing facts, votes and consensus.
+
+This preserves the current Person 2 subsystem as the sole owner of reviewer
+votes, consensus, Byzantine behavior, reputation mechanics and experiment
+execution, while giving Person 1 a single compatible upstream pipeline and a
+durable knowledge-base layer.

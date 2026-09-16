@@ -16,7 +16,7 @@ class ConservativeReviewer(BaseReviewer):
     """
     Conservative Reviewer (Reviewer 3).
 
-    Uses gemini-2.5-flash-lite with a strict evaluation standard.
+    Uses the configured Groq-hosted model with a strict evaluation standard.
     Requires strong, multi-source evidence for acceptance.
     """
 

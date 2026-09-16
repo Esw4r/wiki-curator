@@ -8,21 +8,16 @@ retries, and error fallback.
 
 from __future__ import annotations
 
-import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
-from google import genai
-from google.genai import types
-
-from backend.config import settings
 from backend.schemas.messages import (
     EditorVerdict,
     ReviewVote,
     Source,
     VoteChoice,
 )
+from backend.services.llm import GroqClient
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +50,12 @@ class BaseReviewer(ABC):
 
     Subclasses must implement:
     - system_prompt: The reviewer's persona and evaluation criteria.
-    - model_name: Which Gemini model to use.
+    - model_name: Which Groq-hosted model to use.
     - reviewer_id: Unique identifier (e.g. "reviewer_1").
     """
 
     def __init__(self) -> None:
-        self._client: genai.Client | None = None
-
-    def _get_client(self) -> genai.Client:
-        """Lazy-initialize the GenAI client."""
-        if self._client is None:
-            self._client = genai.Client(api_key=settings.gemini_api_key)
-        return self._client
+        self._llm = GroqClient()
 
     @property
     @abstractmethod
@@ -77,7 +66,7 @@ class BaseReviewer(ABC):
     @property
     @abstractmethod
     def model_name(self) -> str:
-        """The Gemini model name to use."""
+        """The Groq model name to use."""
         ...
 
     @property
@@ -108,19 +97,12 @@ class BaseReviewer(ABC):
         prompt = self._build_prompt(claim, sources, editor_verdict, existing_kb_facts)
 
         try:
-            client = self._get_client()
-            response = client.models.generate_content(
+            data = await self._llm.json_completion(
                 model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=self.system_prompt,
-                    temperature=0.3,
-                    response_mime_type="application/json",
-                    response_schema=_REVIEW_OUTPUT_SCHEMA,
-                ),
+                system_prompt=self.system_prompt,
+                prompt=(prompt + "\n\nReturn a JSON object matching this schema: "
+                        + str(_REVIEW_OUTPUT_SCHEMA)),
             )
-
-            data = json.loads(response.text)
 
             vote = ReviewVote(
                 proposal_id=editor_verdict.proposal_id,
