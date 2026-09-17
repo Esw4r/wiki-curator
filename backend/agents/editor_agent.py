@@ -29,6 +29,7 @@ class EditorAgent:
                 verdict=EditorVerdictType.INSUFFICIENT_EVIDENCE, confidence=0.0,
                 reason="No external sources were available for this claim.",
                 existing_kb_facts=kb_facts,
+                all_sources=[],
             )
         prompt = (
             f"Claim:\n{research.claim}\n\nAccepted KB facts:\n{kb_facts}\n\nSources:\n" +
@@ -45,6 +46,7 @@ class EditorAgent:
                 proposal_id=research.proposal_id, claim=research.claim, verdict=verdict,
                 confidence=max(0.0, min(1.0, float(data.get("confidence", 0.0)))),
                 supporting_sources=supporting,
+                all_sources=research.sources,
                 conflicts=[str(item) for item in data.get("conflicts", [])],
                 reason=str(data.get("reason", "")), existing_kb_facts=kb_facts,
             )
@@ -53,6 +55,7 @@ class EditorAgent:
             return EditorVerdict(
                 proposal_id=research.proposal_id, claim=research.claim,
                 verdict=EditorVerdictType.INSUFFICIENT_EVIDENCE, confidence=0.0,
-                supporting_sources=[], reason="Editor evaluation was unavailable; more evidence is required.",
+                supporting_sources=[], all_sources=research.sources,
+                reason="Editor evaluation was unavailable; more evidence is required.",
                 existing_kb_facts=kb_facts,
             )

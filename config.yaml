@@ -28,9 +28,12 @@ reputation:
 
 byzantine:
   enabled: false
-  # Automatic review-pipeline injection must use a reviewer attack mode.
-  # Proposer attacks remain explicit API actions.
-  default_attack_mode: ALWAYS_ACCEPT
+  # ADVERSARIAL_REFUTATION — intelligent adversary for the normal curation pipeline.
+  # Searches for real evidence, identifies genuine weaknesses, and constructs
+  # the strongest plausible counterargument against the likely correct conclusion.
+  # Other reviewer modes (ALWAYS_ACCEPT, ALWAYS_REJECT, etc.) are available for
+  # explicit experiments via the Byzantine page.
+  default_attack_mode: ADVERSARIAL_REFUTATION
   # Attack intensity: 0.0 (mild) to 1.0 (aggressive)
   intensity: 0.8
 

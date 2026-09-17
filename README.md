@@ -186,16 +186,17 @@ The Editor Agent produces one of three verdicts:
 
 ### Byzantine Attack Modes
 
-| Mode                      | Type     | Description                                           |
-|---------------------------|----------|-------------------------------------------------------|
-| FALSE_CLAIM               | Proposer | Generates a plausible but factually incorrect claim   |
-| CONTRADICT_EXISTING_FACT  | Proposer | Contradicts a known fact in the knowledge base        |
-| FAKE_SOURCE               | Proposer | Fabricates realistic-looking source metadata          |
-| IRRELEVANT_SOURCE         | Proposer | Attaches unrelated evidence to a claim                |
-| ALWAYS_ACCEPT             | Reviewer | Votes ACCEPT regardless of evidence quality           |
-| ALWAYS_REJECT             | Reviewer | Votes REJECT regardless of evidence quality           |
-| RANDOM_VOTE               | Reviewer | Randomised vote and confidence value                  |
-| CONFIDENCE_MANIPULATION   | Reviewer | Correct vote direction but inflated confidence        |
+| Mode                      | Type                 | Description                                                                                          |
+|---------------------------|----------------------|------------------------------------------------------------------------------------------------------|
+| ADVERSARIAL_REFUTATION    | Intelligent Adversary| Default for normal curation. Searches real evidence, identifies weaknesses, votes against the likely correct conclusion with a grounded counterargument |
+| FALSE_CLAIM               | Proposer             | Generates a plausible but factually incorrect claim                                                  |
+| CONTRADICT_EXISTING_FACT  | Proposer             | Contradicts a known fact in the knowledge base                                                       |
+| FAKE_SOURCE               | Proposer             | Fabricates realistic-looking source metadata                                                         |
+| IRRELEVANT_SOURCE         | Proposer             | Attaches unrelated evidence to a claim                                                               |
+| ALWAYS_ACCEPT             | Reviewer             | Votes ACCEPT regardless of evidence quality                                                          |
+| ALWAYS_REJECT             | Reviewer             | Votes REJECT regardless of evidence quality                                                          |
+| RANDOM_VOTE               | Reviewer             | Randomised vote and confidence value                                                                 |
+| CONFIDENCE_MANIPULATION   | Reviewer             | Correct vote direction but inflated confidence                                                       |
 
 ---
 
@@ -277,7 +278,7 @@ reputation:
 
 byzantine:
   enabled: false
-  default_attack_mode: FALSE_CLAIM
+  default_attack_mode: ADVERSARIAL_REFUTATION
   intensity: 0.8
 
 database:

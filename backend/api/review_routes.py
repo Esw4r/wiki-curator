@@ -74,7 +74,11 @@ async def submit_for_review(editor_verdict: EditorVerdict):
     )
 
     # 2. Run reviewers in parallel
-    sources = editor_verdict.supporting_sources
+    # Use all_sources (the complete research set) so reviewers always see the full
+    # evidence context. supporting_sources is the editor-filtered subset, which may
+    # be empty when the verdict is CONTRADICTED or INSUFFICIENT_EVIDENCE.
+    # The full source list lets reviewers independently evaluate scope/relevance.
+    sources = editor_verdict.all_sources or editor_verdict.supporting_sources
     kb_facts = editor_verdict.existing_kb_facts
 
     review_tasks = [

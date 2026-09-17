@@ -108,7 +108,7 @@ class _ByzantineConfig:
 
     @property
     def default_attack_mode(self) -> str:
-        return _YAML.get("byzantine", {}).get("default_attack_mode", "FALSE_CLAIM")
+        return _YAML.get("byzantine", {}).get("default_attack_mode", "ADVERSARIAL_REFUTATION")
 
     @property
     def intensity(self) -> float:

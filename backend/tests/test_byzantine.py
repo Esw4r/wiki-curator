@@ -79,10 +79,11 @@ class TestAttackModes:
     def test_available_modes_returns_all(self):
         modes = ByzantineAgent.available_attack_modes()
         mode_names = {m["mode"] for m in modes}
+        assert "ADVERSARIAL_REFUTATION" in mode_names
         assert "FALSE_CLAIM" in mode_names
         assert "ALWAYS_ACCEPT" in mode_names
         assert "RANDOM_VOTE" in mode_names
-        assert len(modes) == 8
+        assert len(modes) == 9
 
     def test_modes_have_descriptions(self):
         modes = ByzantineAgent.available_attack_modes()
