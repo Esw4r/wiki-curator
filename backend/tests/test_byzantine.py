@@ -79,10 +79,11 @@ class TestAttackModes:
     def test_available_modes_returns_all(self):
         modes = ByzantineAgent.available_attack_modes()
         mode_names = {m["mode"] for m in modes}
+        assert "ADVERSARIAL_REFUTATION" in mode_names
         assert "FALSE_CLAIM" in mode_names
         assert "ALWAYS_ACCEPT" in mode_names
         assert "RANDOM_VOTE" in mode_names
-        assert len(modes) == 8
+        assert len(modes) == 9
 
     def test_modes_have_descriptions(self):
         modes = ByzantineAgent.available_attack_modes()
@@ -93,6 +94,17 @@ class TestAttackModes:
 # ── Fallback Attack ─────────────────────────────────────────────────────
 
 class TestFallbackAttack:
+    @pytest.mark.asyncio
+    async def test_llm_failure_returns_a_fallback_attack(self, agent):
+        """Proposer attacks must degrade gracefully when the LLM is unavailable."""
+        async def fail(**_kwargs):
+            raise RuntimeError("provider unavailable")
+
+        agent._llm.json_completion = fail
+        result = await agent.generate_attack("Earth is round.", AttackType.FALSE_CLAIM)
+        assert result.malicious_claim
+        assert result.source_strategy == "Fallback: LLM unavailable"
+
     def test_fallback_false_claim(self, agent):
         result = agent._fallback_attack("Python was created by Guido.", AttackType.FALSE_CLAIM)
         assert result.attack_type == AttackType.FALSE_CLAIM

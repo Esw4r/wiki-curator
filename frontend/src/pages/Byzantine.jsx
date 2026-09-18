@@ -52,7 +52,10 @@ export default function Byzantine() {
     setLoading(false);
   }
 
-  // Separate proposer and reviewer attack modes
+  // Separate attack modes into three categories
+  const intelligentModes = modes.filter(m =>
+    ['ADVERSARIAL_REFUTATION'].includes(m.mode)
+  );
   const proposerModes = modes.filter(m =>
     ['FALSE_CLAIM', 'CONTRADICT_EXISTING_FACT', 'FAKE_SOURCE', 'IRRELEVANT_SOURCE'].includes(m.mode)
   );
@@ -112,6 +115,11 @@ export default function Byzantine() {
             <div className="form-group">
               <label className="form-label">Attack Type</label>
               <select className="form-select" value={attackType} onChange={(e) => setAttackType(e.target.value)}>
+                <optgroup label="Intelligent Adversary">
+                  {intelligentModes.map(m => (
+                    <option key={m.mode} value={m.mode}>{m.mode} — {m.description}</option>
+                  ))}
+                </optgroup>
                 <optgroup label="Proposer Attacks">
                   {proposerModes.map(m => (
                     <option key={m.mode} value={m.mode}>{m.mode} — {m.description}</option>
@@ -206,7 +214,9 @@ export default function Byzantine() {
                 </td>
                 <td>{m.description}</td>
                 <td className="mono">
-                  {['ALWAYS_ACCEPT', 'ALWAYS_REJECT', 'RANDOM_VOTE', 'CONFIDENCE_MANIPULATION'].includes(m.mode)
+                  {m.mode === 'ADVERSARIAL_REFUTATION'
+                    ? 'Intelligent Adversary'
+                    : ['ALWAYS_ACCEPT', 'ALWAYS_REJECT', 'RANDOM_VOTE', 'CONFIDENCE_MANIPULATION'].includes(m.mode)
                     ? 'Reviewer'
                     : 'Proposer'}
                 </td>

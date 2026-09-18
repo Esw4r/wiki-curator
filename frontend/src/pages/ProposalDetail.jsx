@@ -8,22 +8,25 @@ function VoteBadge({ vote }) {
 }
 
 function VoteCard({ vote }) {
-  const voteType = vote.vote || vote.vote;
-  const cls = vote.is_byzantine
+  const voteType = vote.vote;
+  const isByzantine = vote.is_byzantine === true || vote.is_byzantine === 1;
+  const cls = isByzantine
     ? 'byzantine'
     : voteType === 'ACCEPT' ? 'accept' : voteType === 'REJECT' ? 'reject' : 'nme';
 
   const confPercent = ((vote.confidence || 0) * 100).toFixed(0);
   const confColor = voteType === 'ACCEPT' ? '#10b981' : voteType === 'REJECT' ? '#f43f5e' : '#f59e0b';
+  const reviewerLabel = vote.agent_id || vote.reviewer_id || 'Unknown';
+  const reason = vote.reason && vote.reason.trim() !== '' ? vote.reason : 'No reason provided.';
 
   return (
     <div className={`vote-card ${cls}`}>
       <div className="vote-card-header">
         <div>
           <div className="vote-card-reviewer">
-            {vote.is_byzantine ? '🎭 ' : ''}{vote.agent_id || vote.reviewer_id}
+            {isByzantine ? '[Byzantine] ' : ''}{reviewerLabel}
           </div>
-          {vote.is_byzantine && (
+          {isByzantine && (
             <span className="vote-badge byzantine" style={{ marginTop: 4 }}>BYZANTINE</span>
           )}
         </div>
@@ -41,8 +44,13 @@ function VoteCard({ vote }) {
         />
       </div>
 
-      <div className="vote-card-reason">
-        {vote.reason || 'No reason provided.'}
+      <div className="vote-card-reason" style={{ marginTop: 12 }}>
+        {isByzantine && (
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--accent-byzantine)', marginBottom: 4 }}>
+            Reasoning
+          </div>
+        )}
+        {reason}
       </div>
     </div>
   );

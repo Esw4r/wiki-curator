@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.agents.byzantine_agent import ByzantineAgent
+from backend.config import settings
 from backend.database import models as db
 from backend.schemas.messages import (
     AttackType,
@@ -46,10 +47,15 @@ class ByzantineConfigUpdate(BaseModel):
 # ── In-memory config state (mirrors yaml but can be toggled at runtime) ─
 
 _runtime_config = {
-    "enabled": False,
-    "default_attack_mode": "FALSE_CLAIM",
-    "intensity": 0.8,
+    "enabled": settings.byzantine.enabled,
+    "default_attack_mode": settings.byzantine.default_attack_mode,
+    "intensity": settings.byzantine.intensity,
 }
+
+
+def get_runtime_config() -> dict[str, object]:
+    """Return the one runtime Byzantine configuration used by UI and review flow."""
+    return _runtime_config.copy()
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────

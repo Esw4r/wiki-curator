@@ -49,26 +49,7 @@ export default function Dashboard() {
 
     setSubmitting(true);
     try {
-      // Create a mock editor verdict for testing
-      const editorVerdict = {
-        proposal_id: `P-${Date.now().toString(36)}`,
-        claim: claim.trim(),
-        verdict: 'VALID',
-        confidence: 0.85,
-        supporting_sources: [
-          {
-            title: 'Mock Source',
-            url: 'https://example.com',
-            snippet: `Evidence supporting: ${claim}`,
-            domain: 'example.com',
-          },
-        ],
-        conflicts: [],
-        reason: 'Mock editor verdict for testing.',
-        existing_kb_facts: [],
-      };
-
-      await api.submitForReview(editorVerdict);
+      await api.curateClaim(claim.trim());
       setClaim('');
       await loadData();
     } catch (err) {

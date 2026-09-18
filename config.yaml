@@ -3,10 +3,15 @@
 # =============================================================
 
 models:
-  reviewer_1: gemini-2.5-flash
-  reviewer_2: gemini-2.5-flash
-  reviewer_3: gemini-2.5-flash-lite
-  byzantine: gemini-2.5-flash-lite
+  reviewer_1: openai/gpt-oss-20b
+  reviewer_2: openai/gpt-oss-20b
+  reviewer_3: openai/gpt-oss-20b
+  byzantine: openai/gpt-oss-20b
+  editor: openai/gpt-oss-20b
+
+search:
+  max_results: 5
+  timeout_seconds: 10
 
 consensus:
   method: majority          # "majority" or "weighted"
@@ -23,7 +28,12 @@ reputation:
 
 byzantine:
   enabled: false
-  default_attack_mode: FALSE_CLAIM
+  # ADVERSARIAL_REFUTATION — intelligent adversary for the normal curation pipeline.
+  # Searches for real evidence, identifies genuine weaknesses, and constructs
+  # the strongest plausible counterargument against the likely correct conclusion.
+  # Other reviewer modes (ALWAYS_ACCEPT, ALWAYS_REJECT, etc.) are available for
+  # explicit experiments via the Byzantine page.
+  default_attack_mode: ADVERSARIAL_REFUTATION
   # Attack intensity: 0.0 (mild) to 1.0 (aggressive)
   intensity: 0.8
 

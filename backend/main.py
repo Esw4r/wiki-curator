@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.review_routes import router as review_router
 from backend.api.byzantine_routes import router as byzantine_router
 from backend.api.experiment_routes import router as experiment_router
+from backend.api.curation_routes import router as curation_router
 from backend.database.db import init_db
 
 # ── Logging setup ────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ app.add_middleware(
 app.include_router(review_router, prefix="/api", tags=["Review Pipeline"])
 app.include_router(byzantine_router, prefix="/api/byzantine", tags=["Byzantine Agent"])
 app.include_router(experiment_router, prefix="/api/experiments", tags=["Experiments"])
+app.include_router(curation_router, prefix="/api", tags=["Curation Pipeline"])
 
 
 @app.get("/api/health")

@@ -17,6 +17,7 @@ from backend.agents.evidence_reviewer import EvidenceReviewer
 from backend.agents.consistency_reviewer import ConsistencyReviewer
 from backend.agents.conservative_reviewer import ConservativeReviewer
 from backend.agents.byzantine_agent import ByzantineAgent
+from backend.api.byzantine_routes import get_runtime_config
 from backend.config import settings
 from backend.consensus.engine import ConsensusEngine
 from backend.consensus.reputation import ReputationManager
@@ -73,7 +74,11 @@ async def submit_for_review(editor_verdict: EditorVerdict):
     )
 
     # 2. Run reviewers in parallel
-    sources = editor_verdict.supporting_sources
+    # Use all_sources (the complete research set) so reviewers always see the full
+    # evidence context. supporting_sources is the editor-filtered subset, which may
+    # be empty when the verdict is CONTRADICTED or INSUFFICIENT_EVIDENCE.
+    # The full source list lets reviewers independently evaluate scope/relevance.
+    sources = editor_verdict.all_sources or editor_verdict.supporting_sources
     kb_facts = editor_verdict.existing_kb_facts
 
     review_tasks = [
@@ -85,12 +90,13 @@ async def submit_for_review(editor_verdict: EditorVerdict):
     votes: list[ReviewVote] = await asyncio.gather(*review_tasks)
 
     # 3. Optional byzantine reviewer
-    byzantine_active = settings.byzantine.enabled
+    byzantine_config = get_runtime_config()
+    byzantine_active = bool(byzantine_config["enabled"])
     if byzantine_active:
         byz_vote = await _byzantine_agent.cast_vote(
             proposal_id=proposal_id,
             claim=claim,
-            attack_mode=AttackType(settings.byzantine.default_attack_mode),
+            attack_mode=AttackType(str(byzantine_config["default_attack_mode"])),
             editor_verdict=editor_verdict,
         )
         votes.append(byz_vote)

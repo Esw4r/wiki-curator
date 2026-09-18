@@ -39,6 +39,12 @@ export const api = {
       body: JSON.stringify(editorVerdict),
     }),
 
+  curateClaim: (claim) =>
+    request('/curation', {
+      method: 'POST',
+      body: JSON.stringify({ claim }),
+    }),
+
   // Votes
   getVotes: (proposalId) => request(`/votes/${proposalId}`),
 

@@ -4,6 +4,7 @@ import ProposalDetail from './pages/ProposalDetail';
 import Byzantine from './pages/Byzantine';
 import Experiments from './pages/Experiments';
 import Reputation from './pages/Reputation';
+import SubmitClaim from './pages/SubmitClaim';
 
 function App() {
   return (
@@ -21,6 +22,9 @@ function App() {
 
           <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             Dashboard
+          </NavLink>
+          <NavLink to="/submit" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            Submit Claim
           </NavLink>
 
           <NavLink to="/byzantine" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
@@ -40,6 +44,7 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/submit" element={<SubmitClaim />} />
             <Route path="/proposals/:id" element={<ProposalDetail />} />
             <Route path="/byzantine" element={<Byzantine />} />
             <Route path="/experiments" element={<Experiments />} />

@@ -70,15 +70,61 @@ CREATE TABLE IF NOT EXISTS experiment_runs (
     results_json TEXT DEFAULT '{}',
     created_at  TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS facts (
+    id TEXT PRIMARY KEY,
+    fact_text TEXT NOT NULL,
+    normalized_text TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'ACCEPTED',
+    accepted_proposal_id TEXT UNIQUE REFERENCES proposals(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sources (
+    id TEXT PRIMARY KEY,
+    url TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    domain TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS proposal_evidence (
+    proposal_id TEXT NOT NULL REFERENCES proposals(id),
+    source_id TEXT NOT NULL REFERENCES sources(id),
+    snippet TEXT NOT NULL,
+    query TEXT DEFAULT '',
+    rank INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (proposal_id, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS fact_sources (
+    fact_id TEXT NOT NULL REFERENCES facts(id),
+    source_id TEXT NOT NULL REFERENCES sources(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (fact_id, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS fact_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fact_id TEXT NOT NULL REFERENCES facts(id),
+    proposal_id TEXT REFERENCES proposals(id),
+    action TEXT NOT NULL,
+    reason TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_proposal_evidence_proposal ON proposal_evidence(proposal_id);
+CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status);
 """
 
 # ── Default agents to seed ───────────────────────────────────────────────
 
 _SEED_AGENTS = [
-    ("reviewer_1", "Evidence Reviewer", "REVIEWER", "gemini-2.5-flash", 0.75),
-    ("reviewer_2", "Consistency Reviewer", "REVIEWER", "gemini-2.5-flash", 0.75),
-    ("reviewer_3", "Conservative Reviewer", "REVIEWER", "gemini-2.5-flash-lite", 0.75),
-    ("byzantine", "Byzantine Agent", "BYZANTINE", "gemini-2.5-flash-lite", 0.50),
+    ("reviewer_1", "Evidence Reviewer", "REVIEWER", "openai/gpt-oss-20b", 0.75),
+    ("reviewer_2", "Consistency Reviewer", "REVIEWER", "openai/gpt-oss-20b", 0.75),
+    ("reviewer_3", "Conservative Reviewer", "REVIEWER", "openai/gpt-oss-20b", 0.75),
+    ("byzantine", "Byzantine Agent", "BYZANTINE", "openai/gpt-oss-20b", 0.50),
 ]
 
 
@@ -106,6 +152,7 @@ async def init_db() -> None:
                 """,
                 (agent_id, name, role, model, rep),
             )
+            await db.execute("UPDATE agents SET model = ? WHERE id = ?", (model, agent_id))
         await db.commit()
     finally:
         await db.close()

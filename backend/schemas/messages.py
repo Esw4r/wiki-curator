@@ -39,10 +39,14 @@ class ConsensusMethod(str, Enum):
 
 class AttackType(str, Enum):
     """Byzantine agent attack modes."""
+    # ── Intelligent adversary (default for normal curation pipeline) ─────
+    ADVERSARIAL_REFUTATION = "ADVERSARIAL_REFUTATION"
+    # ── Proposer attacks (inject false/misleading claims or sources) ─────
     FALSE_CLAIM = "FALSE_CLAIM"
     CONTRADICT_EXISTING_FACT = "CONTRADICT_EXISTING_FACT"
     FAKE_SOURCE = "FAKE_SOURCE"
     IRRELEVANT_SOURCE = "IRRELEVANT_SOURCE"
+    # ── Reviewer attacks (dishonest voting behaviour) ────────────────────
     ALWAYS_ACCEPT = "ALWAYS_ACCEPT"
     ALWAYS_REJECT = "ALWAYS_REJECT"
     RANDOM_VOTE = "RANDOM_VOTE"
@@ -90,12 +94,22 @@ class EditorVerdict(BaseModel):
     """
     Output from Person 1's Editor Agent → input to Reviewers.
     This is the primary hand-off from Person 1 to Person 2.
+
+    supporting_sources: sources the editor judged as supporting the claim (may be empty
+                        if verdict is CONTRADICTED or INSUFFICIENT_EVIDENCE).
+    all_sources:        the complete list of sources retrieved by the Research Agent.
+                        Passed through so honest reviewers always have the full evidence
+                        context regardless of the editor's filtering decision.
     """
     proposal_id: str
     claim: str
     verdict: EditorVerdictType
     confidence: float = Field(ge=0.0, le=1.0)
     supporting_sources: list[Source] = Field(default_factory=list)
+    all_sources: list[Source] = Field(
+        default_factory=list,
+        description="All research sources, including those not selected by the editor"
+    )
     conflicts: list[str] = Field(default_factory=list)
     reason: str = Field(default="")
     existing_kb_facts: list[str] = Field(
