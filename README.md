@@ -1,4 +1,4 @@
-# Wiki Curator — Decentralized Knowledge Base Curation
+# Wiki Curator - Decentralized Knowledge Base Curation
 
 A multi-agent, multi-model system where autonomous AI agents cooperate to curate a shared knowledge base. Factual claims are validated through a pipeline of Research, Editor, and Reviewer agents, Byzantine fault detection, and a Consensus Engine before being accepted or rejected.
 
