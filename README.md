@@ -8,7 +8,7 @@ A multi-agent, multi-model system where autonomous AI agents cooperate to curate
 
 - Python 3.10+
 - Node.js 18+
-- An xAI API key (https://console.x.ai/)
+- A Groq API key (https://console.groq.com/)
 
 ### 1. Clone and configure
 
@@ -26,7 +26,7 @@ cp .env.example .env
 Edit `.env`:
 
 ```
-XAI_API_KEY=<your_actual_api_key_here>
+GROQ_API_KEY=<your_actual_api_key_here>
 ```
 
 ### 2. Backend
@@ -58,9 +58,9 @@ Frontend: http://localhost:5173
 
 ## Environment Variables
 
-| Variable    | Description       | Required |
-|-------------|-------------------|----------|
-| XAI_API_KEY | xAI Grok API key  | Yes      |
+| Variable     | Description       | Required |
+|--------------|-------------------|----------|
+| GROQ_API_KEY | Groq API key      | Yes      |
 
 ## Running Tests
 
@@ -75,11 +75,11 @@ All tunable parameters are in `config.yaml`:
 
 ```yaml
 models:
-  reviewer_1: grok-4.6
-  reviewer_2: grok-4.6
-  reviewer_3: grok-4.6
-  byzantine:  grok-4.6
-  editor:     grok-4.6
+  reviewer_1: openai/gpt-oss-20b
+  reviewer_2: openai/gpt-oss-20b
+  reviewer_3: openai/gpt-oss-20b
+  byzantine:  openai/gpt-oss-20b
+  editor:     openai/gpt-oss-20b
 
 search:
   max_results: 5
@@ -139,7 +139,7 @@ wiki-curator/
 │   │   ├── messages.py              Shared Pydantic v2 contracts (both subsystems)
 │   │   └── curation.py              Curation pipeline schemas
 │   ├── services/
-│   │   ├── llm.py                   GrokClient: async xAI API wrapper
+│   │   ├── llm.py                   GroqClient: async Groq API wrapper
 │   │   ├── search.py                SearchService: DuckDuckGo web search adapter
 │   │   └── curation_orchestrator.py Orchestrates research, editor, review, KB update
 │   ├── tests/
