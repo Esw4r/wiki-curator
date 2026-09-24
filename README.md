@@ -13,7 +13,7 @@ A multi-agent, multi-model system where autonomous AI agents cooperate to curate
 ### 1. Clone and configure
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Esw4r/wiki-curator
 cd wiki-curator
 ```
 
