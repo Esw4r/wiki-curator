@@ -2,40 +2,6 @@
 
 A multi-agent, multi-model system where autonomous AI agents cooperate to curate a shared knowledge base. Factual claims are validated through a pipeline of Research, Editor, and Reviewer agents, Byzantine fault detection, and a Consensus Engine before being accepted or rejected.
 
----
-
-## Architecture
-
-```
-User proposes a factual claim
-        |
-        v
-Research Agent  -->  finds evidence via web search
-        |
-        v
-Editor Agent    -->  validates claim against evidence and existing KB
-        |
-        v
-+-----------------------------------------------+
-|           Reviewer Agents (x3)                |
-|  - Evidence Reviewer   (grok-4.6)             |
-|  - Consistency Reviewer (grok-4.6)            |
-|  - Conservative Reviewer (grok-4.6)           |
-+-----------------------------------------------+
-        |               ^
-        |         Byzantine Agent (optional)
-        |         injects adversarial votes
-        v
-Consensus Engine -->  Majority or Reputation-Weighted voting
-        |
-   +----+----+
-   v         v
-ACCEPT     REJECT / NEEDS MORE EVIDENCE
-   |
-   v
-Knowledge Base updated
-```
-
 ## Setup
 
 ### Prerequisites
