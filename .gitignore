@@ -113,3 +113,5 @@ logs/
 # ==============================
 .env.example.local
 .cache/
+
+CASE_STUDY_AND_ARCHITECTURE.md
