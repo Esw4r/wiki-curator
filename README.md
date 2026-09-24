@@ -36,7 +36,110 @@ ACCEPT     REJECT / NEEDS MORE EVIDENCE
 Knowledge Base updated
 ```
 
----
+## Setup
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- An xAI API key (https://console.x.ai/)
+
+### 1. Clone and configure
+
+```bash
+git clone <repo-url>
+cd wiki-curator
+```
+
+Copy the example env file and add your API key:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```
+XAI_API_KEY=<your_actual_api_key_here>
+```
+
+### 2. Backend
+
+```bash
+# Create and activate virtual environment
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS/Linux
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the backend server
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
+Backend API docs: http://localhost:8000/docs
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend: http://localhost:5173
+
+## Environment Variables
+
+| Variable    | Description       | Required |
+|-------------|-------------------|----------|
+| XAI_API_KEY | xAI Grok API key  | Yes      |
+
+## Running Tests
+
+```bash
+# From project root with venv active
+python -m pytest backend/tests/ -v
+```
+
+## Configuration
+
+All tunable parameters are in `config.yaml`:
+
+```yaml
+models:
+  reviewer_1: grok-4.6
+  reviewer_2: grok-4.6
+  reviewer_3: grok-4.6
+  byzantine:  grok-4.6
+  editor:     grok-4.6
+
+search:
+  max_results: 5
+  timeout_seconds: 10
+
+consensus:
+  method: majority          # majority or weighted
+  min_confidence: 0.5
+  tie_break: NEEDS_MORE_EVIDENCE
+
+reputation:
+  initial_score: 0.75
+  correct_decision_delta: 2
+  incorrect_decision_delta: -3
+  malicious_detected_delta: -5
+  min_score: 0.0
+  max_score: 1.0
+
+byzantine:
+  enabled: false
+  default_attack_mode: ADVERSARIAL_REFUTATION
+  intensity: 0.8
+
+database:
+  path: wiki_curator.db
+```
 
 ## Project Structure
 
@@ -96,225 +199,6 @@ wiki-curator/
 ├── config.yaml                      Model names, consensus and reputation params
 └── requirements.txt
 ```
-
----
-
-## Setup
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- An xAI API key (https://console.x.ai/)
-
-### 1. Clone and configure
-
-```bash
-git clone <repo-url>
-cd wiki-curator
-```
-
-Copy the example env file and add your API key:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```
-XAI_API_KEY=your_actual_api_key_here
-```
-
-### 2. Backend
-
-```bash
-# Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the backend server
-python -m uvicorn backend.main:app --reload --port 8000
-```
-
-Backend API docs: http://localhost:8000/docs
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend: http://localhost:5173
-
----
-
-## Environment Variables
-
-| Variable    | Description       | Required |
-|-------------|-------------------|----------|
-| XAI_API_KEY | xAI Grok API key  | Yes      |
-
----
-
-## Agent Roles
-
-| Agent                | Model    | Role                                                        |
-|----------------------|----------|-------------------------------------------------------------|
-| Research Agent       | —        | Searches the web and returns evidence sources for a claim   |
-| Editor Agent         | grok-4.6 | Evaluates evidence and produces a structured verdict        |
-| Evidence Reviewer    | grok-4.6 | Assesses source credibility and direct evidence support     |
-| Consistency Reviewer | grok-4.6 | Detects conflicts with existing knowledge base              |
-| Conservative Reviewer| grok-4.6 | Applies a strict evidence bar; defaults to caution          |
-| Byzantine Agent      | grok-4.6 | Simulates adversarial attacks for fault-tolerance testing   |
-
-### Editor Verdict Values
-
-The Editor Agent produces one of three verdicts:
-
-| Verdict                | Meaning                                                        |
-|------------------------|----------------------------------------------------------------|
-| VALID                  | Evidence directly and credibly supports the claim              |
-| CONTRADICTED           | Evidence or existing KB facts conflict with the claim          |
-| INSUFFICIENT_EVIDENCE  | Not enough credible sources to make a confident determination  |
-
-### Byzantine Attack Modes
-
-| Mode                      | Type                 | Description                                                                                          |
-|---------------------------|----------------------|------------------------------------------------------------------------------------------------------|
-| ADVERSARIAL_REFUTATION    | Intelligent Adversary| Default for normal curation. Searches real evidence, identifies weaknesses, votes against the likely correct conclusion with a grounded counterargument |
-| FALSE_CLAIM               | Proposer             | Generates a plausible but factually incorrect claim                                                  |
-| CONTRADICT_EXISTING_FACT  | Proposer             | Contradicts a known fact in the knowledge base                                                       |
-| FAKE_SOURCE               | Proposer             | Fabricates realistic-looking source metadata                                                         |
-| IRRELEVANT_SOURCE         | Proposer             | Attaches unrelated evidence to a claim                                                               |
-| ALWAYS_ACCEPT             | Reviewer             | Votes ACCEPT regardless of evidence quality                                                          |
-| ALWAYS_REJECT             | Reviewer             | Votes REJECT regardless of evidence quality                                                          |
-| RANDOM_VOTE               | Reviewer             | Randomised vote and confidence value                                                                 |
-| CONFIDENCE_MANIPULATION   | Reviewer             | Correct vote direction but inflated confidence                                                       |
-
----
-
-## Running Tests
-
-```bash
-# From project root with venv active
-python -m pytest backend/tests/ -v
-```
-
-Expected: 38 tests passing (20 consensus + 12 byzantine + 6 curation)
-
----
-
-## API Endpoints
-
-### Curation pipeline
-
-| Method | Endpoint         | Description                                                            |
-|--------|------------------|------------------------------------------------------------------------|
-| POST   | /api/curation    | Full pipeline: KB lookup, research, editor, review, KB update          |
-| POST   | /api/review      | Submit an EditorVerdict directly for multi-agent review                |
-| GET    | /api/proposals   | List all proposals with pagination                                     |
-| GET    | /api/proposals/{id} | Proposal detail including votes and decision                        |
-| GET    | /api/votes/{id}  | All votes for a specific proposal                                      |
-| GET    | /api/consensus/{id} | Consensus decision for a proposal                                   |
-| GET    | /api/reputation  | Reputation scores for all agents                                       |
-| GET    | /api/reputation/{id}/history | Reputation history for a specific agent                  |
-| GET    | /api/dashboard   | Aggregated statistics                                                  |
-
-### Byzantine agent
-
-| Method | Endpoint               | Description                              |
-|--------|------------------------|------------------------------------------|
-| POST   | /api/byzantine/attack  | Generate a malicious claim or source     |
-| POST   | /api/byzantine/vote    | Cast a malicious reviewer vote           |
-| GET    | /api/byzantine/modes   | List available attack modes              |
-| GET    | /api/byzantine/config  | Get current byzantine configuration      |
-| PUT    | /api/byzantine/config  | Update byzantine configuration           |
-
-### Experiments
-
-| Method | Endpoint                  | Description                              |
-|--------|---------------------------|------------------------------------------|
-| POST   | /api/experiments/run      | Run a fault-tolerance experiment         |
-| GET    | /api/experiments/         | List past experiment runs                |
-| GET    | /api/experiments/{id}     | Experiment detail and metrics            |
-
----
-
-## Configuration
-
-All tunable parameters are in `config.yaml`:
-
-```yaml
-models:
-  reviewer_1: grok-4.6
-  reviewer_2: grok-4.6
-  reviewer_3: grok-4.6
-  byzantine:  grok-4.6
-  editor:     grok-4.6
-
-search:
-  max_results: 5
-  timeout_seconds: 10
-
-consensus:
-  method: majority          # majority or weighted
-  min_confidence: 0.5
-  tie_break: NEEDS_MORE_EVIDENCE
-
-reputation:
-  initial_score: 0.75
-  correct_decision_delta: 2
-  incorrect_decision_delta: -3
-  malicious_detected_delta: -5
-  min_score: 0.0
-  max_score: 1.0
-
-byzantine:
-  enabled: false
-  default_attack_mode: ADVERSARIAL_REFUTATION
-  intensity: 0.8
-
-database:
-  path: wiki_curator.db
-```
-
----
-
-## Database Schema
-
-The system uses a single SQLite database shared across both subsystems.
-
-| Table               | Owner    | Purpose                                               |
-|---------------------|----------|-------------------------------------------------------|
-| agents              | Shared   | Agent registry with reputation scores                 |
-| proposals           | Shared   | One row per submitted claim, tracks lifecycle status  |
-| votes               | Review   | Individual reviewer votes per proposal                |
-| decisions           | Review   | Consensus outcome per proposal                        |
-| reputation_history  | Review   | Audit log of reputation score changes                 |
-| experiment_runs     | Review   | Stored batch experiment configurations and results    |
-| facts               | Curation | Accepted facts in the knowledge base                  |
-| sources             | Curation | Deduplicated web sources by URL                       |
-| proposal_evidence   | Curation | Evidence sources linked to proposals                  |
-| fact_sources        | Curation | Sources linked to accepted facts                      |
-| fact_history        | Curation | Audit log of fact acceptance and deduplication events |
-
----
-
-## Team Responsibilities
-
-| Person   | Components                                                                          |
-|----------|-------------------------------------------------------------------------------------|
-| Person 1 | Research Agent, Editor Agent, Orchestrator, Knowledge Base, Submit Claim UI         |
-| Person 2 | Byzantine Agent, 3x Reviewer Agents, Consensus Engine, Reputation System, Experiments, Frontend pages for dashboard, proposals, byzantine, experiments, reputation |
-
----
 
 ## License
 
